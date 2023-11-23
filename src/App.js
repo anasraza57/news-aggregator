@@ -38,6 +38,8 @@ const App = () => {
     fetchArticles();
   }, []);
 
+  console.log("filter", filteredArticles);
+
   useEffect(() => {
     const updatedFilteredArticles = articles.filter((article) => {
       const matchesSource =
@@ -54,12 +56,16 @@ const App = () => {
     });
 
     setFilteredArticles(updatedFilteredArticles);
+    console.log("updatedFilteredArticles", updatedFilteredArticles);
 
     const authOptions = [];
     const catOptions = [];
 
     updatedFilteredArticles.forEach((article) => {
-      if (article.source === "News API" || article.source === "nyt") {
+      if (
+        article.source === "News API" ||
+        article.source === "New York Times"
+      ) {
         if (
           !authOptions.some((option) => option.contentBy === article.contentBy)
         ) {
@@ -138,7 +144,7 @@ const App = () => {
           contentBy: article.byline?.person[0]?.firstname
             ? `${article.byline.person[0].firstname} ${article.byline.person[0].lastname}`
             : "",
-          source: "nyt",
+          source: "New York Times",
         })),
       ];
       setArticles(mergedResults);
