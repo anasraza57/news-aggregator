@@ -12,78 +12,101 @@ import {
   MenuItem,
   FormControl,
   InputLabel,
+  Button,
 } from "@mui/material";
 
 const App = () => {
   const [articles, setArticles] = useState([]);
+  const [filteredArticles, setFilteredArticles] = useState([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedSources, setSelectedSources] = useState([]);
+  const [categoryOptions, setCategoryOptions] = useState([]);
   const [selectedCategories, setSelectedCategories] = useState([]);
+  const [autherOptions, setAutherOptions] = useState([]);
   const [selectedAuthors, setSelectedAuthors] = useState([]);
 
   useEffect(() => {
     const fetchArticles = async () => {
       try {
-        const newsApiResults = await NewsApiService.getArticles({
-          q: searchTerm,
-          categories: selectedCategories.join(","),
-          authors: selectedAuthors.join(","),
-        });
-        const guardianResults = await TheGuardianService.getArticles({
-          q: searchTerm,
-        });
+        const params = {};
+
+        if (searchTerm) {
+          params.q = searchTerm;
+        }
+        const newsApiResults = await NewsApiService.getArticles(params);
+        const guardianResults = await TheGuardianService.getArticles(params);
         // const newYorkTimesResults = await NewYorkTimesService.getArticles({
         //   q: searchTerm,
         // });
 
-        const mergedArticles = [];
-
-        newsApiResults.forEach((article) => {
-          mergedArticles.push({
+        const mergedResults = [
+          ...newsApiResults.map((article) => ({
             title: article.title,
             content: article.description,
             url: article.url,
             contentBy: article.author,
-          });
-        });
-
-        guardianResults.forEach((article) => {
-          mergedArticles.push({
+            source: "News API",
+          })),
+          ...guardianResults.map((article) => ({
             title: article.webTitle,
             content: article.webUrl,
             url: article.webUrl,
             contentBy: article.sectionName,
-          });
-        });
-
-        // const mergedResults = [
-        //   ...newsApiResults.map((article) => ({
-        //     title: article.title,
-        //     content: article.description,
-        //     url: article.url,
-        //   })),
-        //   ...guardianResults.map((article) => ({
-        //     title: article.webTitle,
-        //     content: article.webUrl,
-        //     url: article.webUrl,
-        //   })),
-        // ...newYorkTimesResults.map((article) => ({
-        //   title: article.headline.main,
-        //   content: article.abstract,
-        //   url: article.web_url,
-        // })),
-        // ];
-
-        setArticles(mergedArticles);
-        setArticles(mergedArticles);
+            source: "The Guardian",
+          })),
+          // ...newYorkTimesResults.map((article) => ({
+          //   title: article.headline.main,
+          //   content: article.abstract,
+          //   url: article.web_url,
+          // })),
+        ];
+        setArticles(mergedResults);
       } catch (error) {
         console.error("Error fetching articles:", error);
-        // Handle errors as needed in your application
       }
     };
-
     fetchArticles();
-  }, [searchTerm, selectedSources, selectedCategories, selectedAuthors]);
+  }, [searchTerm]);
+
+  useEffect(() => {
+    const updatedFilteredArticles = articles.filter((article) => {
+      const matchesSource =
+        selectedSources.length === 0 ||
+        selectedSources.includes(article.source);
+      const matchesCategory =
+        selectedCategories.length === 0 ||
+        selectedCategories.includes(article.contentBy);
+      const matchesAuthor =
+        selectedAuthors.length === 0 ||
+        selectedAuthors.includes(article.contentBy);
+
+      return matchesSource && matchesCategory && matchesAuthor;
+    });
+
+    setFilteredArticles(updatedFilteredArticles);
+
+    const authOptions = [];
+    const catOptions = [];
+
+    updatedFilteredArticles.forEach((article) => {
+      if (article.source === "News API") {
+        if (
+          !authOptions.some((option) => option.contentBy === article.contentBy)
+        ) {
+          authOptions.push(article);
+        }
+      } else if (article.source === "The Guardian") {
+        if (
+          !catOptions.some((option) => option.contentBy === article.contentBy)
+        ) {
+          catOptions.push(article);
+        }
+      }
+    });
+
+    setAutherOptions(authOptions);
+    setCategoryOptions(catOptions);
+  }, [articles, selectedSources, selectedCategories, selectedAuthors]);
 
   const handleSearch = (e) => {
     setSearchTerm(e.target.value);
@@ -91,29 +114,24 @@ const App = () => {
 
   const handleSourceChange = (e) => {
     const source = e.target.value;
-    setSelectedSources((prevSelected) =>
-      prevSelected.includes(source)
-        ? prevSelected.filter((s) => s !== source)
-        : [...prevSelected, source]
-    );
+    setSelectedSources(source);
   };
 
   const handleCategoryChange = (e) => {
     const category = e.target.value;
-    setSelectedCategories((prevSelected) =>
-      prevSelected.includes(category)
-        ? prevSelected.filter((c) => c !== category)
-        : [...prevSelected, category]
-    );
+    setSelectedCategories(category);
   };
 
   const handleAuthorChange = (e) => {
     const author = e.target.value;
-    setSelectedAuthors((prevSelected) =>
-      prevSelected.includes(author)
-        ? prevSelected.filter((a) => a !== author)
-        : [...prevSelected, author]
-    );
+    setSelectedAuthors(author);
+  };
+
+  const clearFiltersHandler = () => {
+    setSearchTerm("");
+    setSelectedSources([]);
+    setSelectedCategories([]);
+    setSelectedAuthors([]);
   };
 
   return (
@@ -146,11 +164,10 @@ const App = () => {
               value={selectedSources}
               onChange={handleSourceChange}
               variant="outlined"
-              renderValue={(selected) => selected.join(", ")}
             >
-              <MenuItem value="source1">Source 1</MenuItem>
-              <MenuItem value="source2">Source 2</MenuItem>
-              {/* Add more source options based on your available sources */}
+              <MenuItem value="News API">News API</MenuItem>
+              <MenuItem value="New York Times">New York Times</MenuItem>
+              <MenuItem value="The Guardian">The Guardian</MenuItem>
             </Select>
           </FormControl>
         </Grid>
@@ -164,11 +181,18 @@ const App = () => {
               value={selectedCategories}
               onChange={handleCategoryChange}
               variant="outlined"
-              renderValue={(selected) => selected.join(", ")}
             >
-              <MenuItem value="category1">Category 1</MenuItem>
-              <MenuItem value="category2">Category 2</MenuItem>
-              {/* Add more category options based on your available categories */}
+              {categoryOptions && categoryOptions.length > 0 ? (
+                categoryOptions
+                  .sort((a, b) => a.contentBy.localeCompare(b.contentBy))
+                  .map((cat, index) => (
+                    <MenuItem key={index} value={cat.contentBy}>
+                      {cat.contentBy}
+                    </MenuItem>
+                  ))
+              ) : (
+                <MenuItem value="none">No Option</MenuItem>
+              )}
             </Select>
           </FormControl>
         </Grid>
@@ -182,16 +206,28 @@ const App = () => {
               value={selectedAuthors}
               onChange={handleAuthorChange}
               variant="outlined"
-              renderValue={(selected) => selected.join(", ")}
             >
-              <MenuItem value="author1">Author 1</MenuItem>
-              <MenuItem value="author2">Author 2</MenuItem>
-              {/* Add more author options based on your available authors */}
+              {autherOptions && autherOptions.length > 0 ? (
+                autherOptions
+                  .sort((a, b) => a.contentBy.localeCompare(b.contentBy))
+                  .map((auther, index) => (
+                    <MenuItem key={index} value={auther.contentBy}>
+                      {auther.contentBy}
+                    </MenuItem>
+                  ))
+              ) : (
+                <MenuItem value="none">No Option</MenuItem>
+              )}
             </Select>
           </FormControl>
         </Grid>
+        <Grid item xs={12} sx={{ display: "flex", justifyContent: "end" }}>
+          <Button onClick={clearFiltersHandler} variant="contained">
+            Clear Filters
+          </Button>
+        </Grid>
       </Grid>
-      <ArticleList articles={articles} />
+      <ArticleList articles={filteredArticles} />
     </Container>
   );
 };
