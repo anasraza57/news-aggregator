@@ -16,6 +16,7 @@ import {
 } from "@mui/material";
 
 const App = () => {
+  const [isFetchingArticles, setIsFetchingArticles] = useState(false);
   const [articles, setArticles] = useState([]);
   const [filteredArticles, setFilteredArticles] = useState([]);
   const [searchTerm, setSearchTerm] = useState("");
@@ -28,6 +29,7 @@ const App = () => {
   useEffect(() => {
     const fetchArticles = async () => {
       try {
+        setIsFetchingArticles(true);
         const params = {};
 
         if (searchTerm) {
@@ -35,9 +37,11 @@ const App = () => {
         }
         const newsApiResults = await NewsApiService.getArticles(params);
         const guardianResults = await TheGuardianService.getArticles(params);
-        // const newYorkTimesResults = await NewYorkTimesService.getArticles({
-        //   q: searchTerm,
-        // });
+        const newYorkTimesResults = await NewYorkTimesService.getArticles(
+          params
+        );
+
+        console.log("newYorkTimesResults", newYorkTimesResults);
 
         const mergedResults = [
           ...newsApiResults.map((article) => ({
@@ -54,15 +58,21 @@ const App = () => {
             contentBy: article.sectionName,
             source: "The Guardian",
           })),
-          // ...newYorkTimesResults.map((article) => ({
-          //   title: article.headline.main,
-          //   content: article.abstract,
-          //   url: article.web_url,
-          // })),
+          ...newYorkTimesResults.map((article) => ({
+            title: article.headline.main,
+            content: article.abstract,
+            url: article.web_url,
+            contentBy: article.byline?.person[0]?.firstname
+              ? `${article.byline?.person[0]?.firstname} ${article.byline?.person[0]?.lastname}`
+              : "",
+            source: "nyt",
+          })),
         ];
         setArticles(mergedResults);
       } catch (error) {
         console.error("Error fetching articles:", error);
+      } finally {
+        setIsFetchingArticles(false);
       }
     };
     fetchArticles();
@@ -89,7 +99,7 @@ const App = () => {
     const catOptions = [];
 
     updatedFilteredArticles.forEach((article) => {
-      if (article.source === "News API") {
+      if (article.source === "News API" || article.source === "nyt") {
         if (
           !authOptions.some((option) => option.contentBy === article.contentBy)
         ) {
@@ -210,11 +220,14 @@ const App = () => {
               {autherOptions && autherOptions.length > 0 ? (
                 autherOptions
                   .sort((a, b) => a.contentBy.localeCompare(b.contentBy))
-                  .map((auther, index) => (
-                    <MenuItem key={index} value={auther.contentBy}>
-                      {auther.contentBy}
-                    </MenuItem>
-                  ))
+                  .map(
+                    (auther, index) =>
+                      auther.contentBy && (
+                        <MenuItem key={index} value={auther.contentBy}>
+                          {auther.contentBy}
+                        </MenuItem>
+                      )
+                  )
               ) : (
                 <MenuItem value="none">No Option</MenuItem>
               )}
@@ -227,7 +240,10 @@ const App = () => {
           </Button>
         </Grid>
       </Grid>
-      <ArticleList articles={filteredArticles} />
+      <ArticleList
+        articles={filteredArticles}
+        isFetchingArticles={isFetchingArticles}
+      />
     </Container>
   );
 };
