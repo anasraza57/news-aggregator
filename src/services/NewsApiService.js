@@ -1,6 +1,6 @@
 import axios from "axios";
 
-const NEWS_API_URL = `https://newsapi.org/v2/everything?domains=techcrunch.com&pageSize=10&apiKey=${process.env.REACT_APP_NEWS_API_KEY}`;
+const NEWS_API_URL = `https://newsapi.org/v2/top-headlines?country=us&pageSize=10&apiKey=${process.env.REACT_APP_NEWS_API_KEY}`;
 
 const NewsApiService = {
   getArticles: async (params) => {

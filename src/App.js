@@ -3,6 +3,9 @@ import ArticleList from "./components/ArticleList";
 import NewsApiService from "./services/NewsApiService";
 import TheGuardianService from "./services/TheGuardianService";
 import NewYorkTimesService from "./services/NewYorkTimesService";
+import { DatePicker } from "@mui/x-date-pickers/DatePicker";
+import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
+import { AdapterDayjs } from "@mui/x-date-pickers/AdapterDayjs";
 import {
   Container,
   Typography,
@@ -14,9 +17,11 @@ import {
   InputLabel,
   Button,
 } from "@mui/material";
+import format from "date-fns/format";
 
 const App = () => {
   const [isFetchingArticles, setIsFetchingArticles] = useState(false);
+  const [applyFilters, setApplyFilters] = useState(false);
   const [articles, setArticles] = useState([]);
   const [filteredArticles, setFilteredArticles] = useState([]);
   const [searchTerm, setSearchTerm] = useState("");
@@ -25,58 +30,13 @@ const App = () => {
   const [selectedCategories, setSelectedCategories] = useState([]);
   const [autherOptions, setAutherOptions] = useState([]);
   const [selectedAuthors, setSelectedAuthors] = useState([]);
+  const [fromDate, setFromDate] = useState(null);
+  const [toDate, setToDate] = useState(null);
+  const [showToError, setShowToError] = useState(false);
 
   useEffect(() => {
-    const fetchArticles = async () => {
-      try {
-        setIsFetchingArticles(true);
-        const params = {};
-
-        if (searchTerm) {
-          params.q = searchTerm;
-        }
-        const newsApiResults = await NewsApiService.getArticles(params);
-        const guardianResults = await TheGuardianService.getArticles(params);
-        const newYorkTimesResults = await NewYorkTimesService.getArticles(
-          params
-        );
-
-        console.log("newYorkTimesResults", newYorkTimesResults);
-
-        const mergedResults = [
-          ...newsApiResults.map((article) => ({
-            title: article.title,
-            content: article.description,
-            url: article.url,
-            contentBy: article.author,
-            source: "News API",
-          })),
-          ...guardianResults.map((article) => ({
-            title: article.webTitle,
-            content: article.webUrl,
-            url: article.webUrl,
-            contentBy: article.sectionName,
-            source: "The Guardian",
-          })),
-          ...newYorkTimesResults.map((article) => ({
-            title: article.headline.main,
-            content: article.abstract,
-            url: article.web_url,
-            contentBy: article.byline?.person[0]?.firstname
-              ? `${article.byline?.person[0]?.firstname} ${article.byline?.person[0]?.lastname}`
-              : "",
-            source: "nyt",
-          })),
-        ];
-        setArticles(mergedResults);
-      } catch (error) {
-        console.error("Error fetching articles:", error);
-      } finally {
-        setIsFetchingArticles(false);
-      }
-    };
     fetchArticles();
-  }, [searchTerm]);
+  }, []);
 
   useEffect(() => {
     const updatedFilteredArticles = articles.filter((article) => {
@@ -118,6 +78,81 @@ const App = () => {
     setCategoryOptions(catOptions);
   }, [articles, selectedSources, selectedCategories, selectedAuthors]);
 
+  useEffect(() => {
+    if (!fromDate || !toDate) {
+      return;
+    }
+    if (toDate < fromDate) {
+      setShowToError(true);
+    } else {
+      setShowToError(false);
+      fetchArticles("", fromDate, toDate);
+    }
+  }, [fromDate, toDate]);
+
+  const fetchArticles = async (searchText, fromDate, toDate) => {
+    try {
+      setIsFetchingArticles(true);
+      const params = {};
+
+      if (searchText) {
+        params.q = searchText;
+      }
+
+      if (fromDate && toDate) {
+        // For NewsApiService, add from and to parameters
+        params.from = format(new Date(fromDate), "yyyy-MM-dd");
+        params.to = format(new Date(toDate), "yyyy-MM-dd");
+
+        // For TheGuardianService, add from-date and to-date parameters
+        params["from-date"] = format(new Date(fromDate), "yyyy-MM-dd");
+        params["to-date"] = format(new Date(toDate), "yyyy-MM-dd");
+
+        // For NewYorkTimesService, add pub_date parameter
+        params.pub_date = format(new Date(fromDate), "yyyy-MM-dd");
+      }
+
+      const newsApiResults = await NewsApiService.getArticles(params);
+      const guardianResults = await TheGuardianService.getArticles(params);
+      const newYorkTimesResults = await NewYorkTimesService.getArticles(params);
+
+      const mergedResults = [
+        ...newsApiResults.map((article) => ({
+          title: article.title,
+          content: article.description,
+          url: article.url,
+          contentBy: article.author,
+          source: "News API",
+        })),
+        ...guardianResults.map((article) => ({
+          title: article.webTitle,
+          content: article.webUrl,
+          url: article.webUrl,
+          contentBy: article.sectionName,
+          source: "The Guardian",
+        })),
+        ...newYorkTimesResults.map((article) => ({
+          title: article.headline.main,
+          content: article.abstract,
+          url: article.web_url,
+          contentBy: article.byline?.person[0]?.firstname
+            ? `${article.byline.person[0].firstname} ${article.byline.person[0].lastname}`
+            : "",
+          source: "nyt",
+        })),
+      ];
+      setArticles(mergedResults);
+    } catch (error) {
+      console.error("Error fetching articles:", error);
+    } finally {
+      setIsFetchingArticles(false);
+    }
+  };
+
+  const handleSearchBtn = () => {
+    fetchArticles(searchTerm);
+  };
+
   const handleSearch = (e) => {
     setSearchTerm(e.target.value);
   };
@@ -142,6 +177,7 @@ const App = () => {
     setSelectedSources([]);
     setSelectedCategories([]);
     setSelectedAuthors([]);
+    setApplyFilters(false);
   };
 
   return (
@@ -155,7 +191,7 @@ const App = () => {
         News Aggregator
       </Typography>
       <Grid container spacing={2}>
-        <Grid item xs={12} sm={12}>
+        <Grid item xs={12} sm={10}>
           <TextField
             label="Search"
             variant="outlined"
@@ -164,81 +200,126 @@ const App = () => {
             onChange={handleSearch}
           />
         </Grid>
-        <Grid item xs={12} sm={4}>
-          <FormControl fullWidth>
-            <InputLabel id="sources-label">Sources</InputLabel>
-            <Select
-              label="Sources"
-              labelId="sources-label"
-              multiple
-              value={selectedSources}
-              onChange={handleSourceChange}
-              variant="outlined"
-            >
-              <MenuItem value="News API">News API</MenuItem>
-              <MenuItem value="New York Times">New York Times</MenuItem>
-              <MenuItem value="The Guardian">The Guardian</MenuItem>
-            </Select>
-          </FormControl>
-        </Grid>
-        <Grid item xs={12} sm={4}>
-          <FormControl fullWidth>
-            <InputLabel id="categories-label">Categories</InputLabel>
-            <Select
-              label="Categories"
-              labelId="categories-label"
-              multiple
-              value={selectedCategories}
-              onChange={handleCategoryChange}
-              variant="outlined"
-            >
-              {categoryOptions && categoryOptions.length > 0 ? (
-                categoryOptions
-                  .sort((a, b) => a.contentBy.localeCompare(b.contentBy))
-                  .map((cat, index) => (
-                    <MenuItem key={index} value={cat.contentBy}>
-                      {cat.contentBy}
-                    </MenuItem>
-                  ))
-              ) : (
-                <MenuItem value="none">No Option</MenuItem>
-              )}
-            </Select>
-          </FormControl>
-        </Grid>
-        <Grid item xs={12} sm={4}>
-          <FormControl fullWidth>
-            <InputLabel id="authors-label">Authors</InputLabel>
-            <Select
-              label="Authors"
-              labelId="authors-label"
-              multiple
-              value={selectedAuthors}
-              onChange={handleAuthorChange}
-              variant="outlined"
-            >
-              {autherOptions && autherOptions.length > 0 ? (
-                autherOptions
-                  .sort((a, b) => a.contentBy.localeCompare(b.contentBy))
-                  .map(
-                    (auther, index) =>
-                      auther.contentBy && (
-                        <MenuItem key={index} value={auther.contentBy}>
-                          {auther.contentBy}
-                        </MenuItem>
-                      )
-                  )
-              ) : (
-                <MenuItem value="none">No Option</MenuItem>
-              )}
-            </Select>
-          </FormControl>
-        </Grid>
-        <Grid item xs={12} sx={{ display: "flex", justifyContent: "end" }}>
-          <Button onClick={clearFiltersHandler} variant="contained">
-            Clear Filters
+        <Grid
+          item
+          xs={12}
+          sm={2}
+          sx={{ display: "flex", justifyContent: "end" }}
+        >
+          <Button onClick={handleSearchBtn} variant="contained">
+            Search
           </Button>
         </Grid>
+        {applyFilters ? (
+          <>
+            <LocalizationProvider dateAdapter={AdapterDayjs}>
+              <Grid item xs={12} sm={6}>
+                <DatePicker
+                  sx={{ width: "100%" }}
+                  label="From"
+                  value={fromDate}
+                  onChange={(newValue) => setFromDate(newValue)}
+                  format="YYYY/MM/DD"
+                />
+              </Grid>
+              <Grid item xs={12} sm={6}>
+                <DatePicker
+                  sx={{ width: "100%" }}
+                  label="To"
+                  value={toDate}
+                  onChange={(newValue) => setToDate(newValue)}
+                  format="YYYY/MM/DD"
+                />
+                {showToError && (
+                  <Typography color={"red"} variant="subtitle2">
+                    *The To value cannot precede the From value.
+                  </Typography>
+                )}
+              </Grid>
+            </LocalizationProvider>
+            <Grid item xs={12} sm={4}>
+              <FormControl fullWidth>
+                <InputLabel id="sources-label">Sources</InputLabel>
+                <Select
+                  label="Sources"
+                  labelId="sources-label"
+                  multiple
+                  value={selectedSources}
+                  onChange={handleSourceChange}
+                  variant="outlined"
+                >
+                  <MenuItem value="News API">News API</MenuItem>
+                  <MenuItem value="New York Times">New York Times</MenuItem>
+                  <MenuItem value="The Guardian">The Guardian</MenuItem>
+                </Select>
+              </FormControl>
+            </Grid>
+            <Grid item xs={12} sm={4}>
+              <FormControl fullWidth>
+                <InputLabel id="categories-label">Categories</InputLabel>
+                <Select
+                  label="Categories"
+                  labelId="categories-label"
+                  multiple
+                  value={selectedCategories}
+                  onChange={handleCategoryChange}
+                  variant="outlined"
+                >
+                  {categoryOptions && categoryOptions.length > 0 ? (
+                    categoryOptions
+                      .sort((a, b) => a.contentBy?.localeCompare(b.contentBy))
+                      .map((cat, index) => (
+                        <MenuItem key={index} value={cat.contentBy}>
+                          {cat.contentBy}
+                        </MenuItem>
+                      ))
+                  ) : (
+                    <MenuItem value="none">No Option</MenuItem>
+                  )}
+                </Select>
+              </FormControl>
+            </Grid>
+            <Grid item xs={12} sm={4}>
+              <FormControl fullWidth>
+                <InputLabel id="authors-label">Authors</InputLabel>
+                <Select
+                  label="Authors"
+                  labelId="authors-label"
+                  multiple
+                  value={selectedAuthors}
+                  onChange={handleAuthorChange}
+                  variant="outlined"
+                >
+                  {autherOptions && autherOptions.length > 0 ? (
+                    autherOptions
+                      .sort((a, b) => a.contentBy?.localeCompare(b.contentBy))
+                      .map(
+                        (auther, index) =>
+                          auther.contentBy && (
+                            <MenuItem key={index} value={auther.contentBy}>
+                              {auther.contentBy}
+                            </MenuItem>
+                          )
+                      )
+                  ) : (
+                    <MenuItem value="none">No Option</MenuItem>
+                  )}
+                </Select>
+              </FormControl>
+            </Grid>
+            <Grid item xs={12}>
+              <Button onClick={clearFiltersHandler} variant="contained">
+                Clear Filters
+              </Button>
+            </Grid>
+          </>
+        ) : (
+          <Grid item xs={12}>
+            <Button onClick={() => setApplyFilters(true)} variant="contained">
+              Show Filters
+            </Button>
+          </Grid>
+        )}
       </Grid>
       <ArticleList
         articles={filteredArticles}
