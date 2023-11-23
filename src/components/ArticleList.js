@@ -1,0 +1,48 @@
+import React from "react";
+import {
+  Card,
+  Box,
+  Typography,
+  CardContent,
+  CardActions,
+  Button,
+  Grid,
+} from "@mui/material";
+
+const ArticleList = ({ articles }) => {
+  return (
+    <Grid container spacing={2} py={2}>
+      {articles.map((article) => (
+        <Grid item xs={12}>
+          <Box sx={{ minWidth: 275 }} key={article.title}>
+            <Card variant="outlined" style={{ height: "100%" }}>
+              <CardContent>
+                <Typography
+                  className="art-heading"
+                  variant="h5"
+                  component="a"
+                  href={article.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  {article.title}
+                </Typography>
+                <Typography sx={{ mb: 1.5 }} color="text.secondary">
+                  {article.contentBy}
+                </Typography>
+                <Typography variant="body2">{article.content}</Typography>
+              </CardContent>
+              <CardActions>
+                <Button href={article.url} target="_blank" size="small">
+                  Read More
+                </Button>
+              </CardActions>
+            </Card>
+          </Box>
+        </Grid>
+      ))}
+    </Grid>
+  );
+};
+
+export default ArticleList;
